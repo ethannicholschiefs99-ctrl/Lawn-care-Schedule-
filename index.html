@@ -2,7 +2,41 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="Professional lawncare scheduling calendar app. Manage jobs, track revenue, and share schedules with your team.">
+    <meta name="theme-color" content="#2d5016">
+    
+    <!-- iOS Web App Configuration -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Lawn Schedule">
+    
+    <!-- Apple App Icons -->
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect fill='%232d5016' width='180' height='180'/><text x='50%' y='50%' font-size='80' font-weight='bold' fill='white' text-anchor='middle' dominant-baseline='central' font-family='system-ui'>LS</text></svg>">
+    
+    <!-- Splash Screen for iPhone 14 Pro -->
+    <link rel="apple-touch-startup-image" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 390 844'><rect fill='%23f5f3f0' width='390' height='844'/><rect fill='%232d5016' width='390' height='200'/><text x='195' y='350' font-size='60' font-weight='bold' fill='%232d5016' text-anchor='middle' font-family='system-ui'>Lawn Schedule</text><text x='195' y='420' font-size='20' fill='%23999' text-anchor='middle' font-family='system-ui'>Calendar Manager</text></svg>">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="data:application/json,{
+      'name': 'Lawn Schedule - Calendar Manager',
+      'short_name': 'Lawn Schedule',
+      'description': 'Professional lawncare scheduling calendar app',
+      'start_url': './',
+      'display': 'standalone',
+      'background_color': '#ffffff',
+      'theme_color': '#2d5016',
+      'scope': './',
+      'icons': [
+        {
+          'src': 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 192 192%22><rect fill=%22%232d5016%22 width=%22192%22 height=%22192%22/><text x=%2250%25%22 y=%2250%25%22 font-size=%2290%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22 dominant-baseline=%22central%22 font-family=%22system-ui%22>LS</text></svg>',
+          'sizes': '192x192',
+          'type': 'image/svg+xml',
+          'purpose': 'any'
+        }
+      ]
+    }">
+    
     <title>Lawn Schedule - Calendar Manager</title>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -41,10 +75,68 @@
             outline: 2px solid #2d5016;
             outline-offset: 0;
         }
+
+        /* Prevent zoom on iOS input focus */
+        input, select, textarea {
+            font-size: 16px;
+        }
+
+        /* Safe area support for notch devices */
+        @supports (padding: max(0px)) {
+            body {
+                padding-left: max(12px, env(safe-area-inset-left));
+                padding-right: max(12px, env(safe-area-inset-right));
+            }
+        }
+
+        /* Splash screen styling */
+        .app-loading {
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(135deg, #f5f3f0 0%, #fafaf8 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            opacity: 0;
+            transition: opacity 0.3s ease-out;
+            pointer-events: none;
+        }
+
+        .app-loading.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .app-loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f0ebe5;
+            border-top: 4px solid #2d5016;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .app-loading-text {
+            color: #2d5016;
+            font-weight: bold;
+            margin-top: 16px;
+            font-size: 18px;
+        }
     </style>
 </head>
 <body>
     <div id="root"></div>
+    <div class="app-loading show" id="appLoading">
+        <div class="app-loading-spinner"></div>
+        <div class="app-loading-text">Lawn Schedule</div>
+    </div>
 
     <script type="text/babel">
         const { useState, useEffect } = React;
@@ -705,6 +797,92 @@
         // Render the app
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<LawncareSchedulerCalendar />);
+
+        // Hide loading screen when app is ready
+        setTimeout(() => {
+            const appLoading = document.getElementById('appLoading');
+            appLoading.classList.remove('show');
+        }, 500);
+
+        // Register Service Worker for offline functionality
+        if ('serviceWorker' in navigator) {
+            const swCode = `
+                const CACHE_NAME = 'lawn-schedule-v1';
+                const ASSETS_TO_CACHE = ['/'];
+
+                self.addEventListener('install', event => {
+                    event.waitUntil(
+                        caches.open(CACHE_NAME).then(cache => {
+                            console.log('Service Worker: Caching app');
+                        })
+                    );
+                    self.skipWaiting();
+                });
+
+                self.addEventListener('activate', event => {
+                    event.waitUntil(
+                        caches.keys().then(cacheNames => {
+                            return Promise.all(
+                                cacheNames.map(cacheName => {
+                                    if (cacheName !== CACHE_NAME) {
+                                        return caches.delete(cacheName);
+                                    }
+                                })
+                            );
+                        })
+                    );
+                    self.clients.claim();
+                });
+
+                self.addEventListener('fetch', event => {
+                    // Network first, fall back to cache
+                    event.respondWith(
+                        fetch(event.request)
+                            .then(response => {
+                                // Cache successful responses
+                                if (event.request.method === 'GET') {
+                                    const responseClone = response.clone();
+                                    caches.open(CACHE_NAME).then(cache => {
+                                        cache.put(event.request, responseClone);
+                                    });
+                                }
+                                return response;
+                            })
+                            .catch(() => {
+                                // Fall back to cache when offline
+                                return caches.match(event.request)
+                                    .then(response => {
+                                        return response || new Response('Offline - app will work with cached data', { status: 503 });
+                                    });
+                            })
+                    );
+                });
+            `;
+
+            const blob = new Blob([swCode], { type: 'application/javascript' });
+            const swUrl = URL.createObjectURL(blob);
+
+            navigator.serviceWorker.register(swUrl, { scope: './' })
+                .then(reg => console.log('Service Worker registered'))
+                .catch(err => console.log('Service Worker registration failed:', err));
+        }
+
+        // Prevent pinch zoom on iOS
+        document.addEventListener('touchmove', function(event) {
+            if (event.touches.length > 1) {
+                event.preventDefault();
+            }
+        }, { passive: false });
+
+        // Prevent double-tap zoom
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', function(event) {
+            const now = Date.now();
+            if (now - lastTouchEnd <= 300) {
+                event.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, false);
     </script>
 </body>
 </html>
