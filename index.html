@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lawn Schedule - Calendar Manager</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+        }
+
+        .scrollbar-thin::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .scrollbar-thin::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .scrollbar-thin::-webkit-scrollbar-thumb {
+            background-color: #d4a574;
+            border-radius: 3px;
+        }
+
+        button:focus {
+            outline: 2px solid #2d5016;
+            outline-offset: 2px;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: 2px solid #2d5016;
+            outline-offset: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // Icon components
+        const Plus = ({ size = 24 }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+        );
+
+        const Share2 = ({ size = 24 }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="18" cy="5" r="3"></circle>
+                <circle cx="6" cy="12" r="3"></circle>
+                <circle cx="18" cy="19" r="3"></circle>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+            </svg>
+        );
+
+        const Copy = ({ size = 24 }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+            </svg>
+        );
+
+        const X = ({ size = 24 }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+        );
+
+        const ChevronLeft = ({ size = 24 }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+        );
+
+        const ChevronRight = ({ size = 24 }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+        );
+
+        const Calendar = ({ size = 24 }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="16" y1="2" x2="16" y2="6"></line>
+                <line x1="8" y1="2" x2="8" y2="6"></line>
+                <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+        );
+
+        // Main App Component
+        function LawncareSchedulerCalendar() {
+            const [jobs, setJobs] = useState(() => {
+                const saved = localStorage.getItem('lawncareJobs');
+                return saved ? JSON.parse(saved) : [];
+            });
+
+            const [currentDate, setCurrentDate] = useState(new Date());
+            const [selectedDate, setSelectedDate] = useState(null);
+            const [showModal, setShowModal] = useState(false);
+            const [showShare, setShowShare] = useState(false);
+            const [copied, setCopied] = useState(false);
+            const [companyId] = useState(() => {
+                const id = localStorage.getItem('lawncareCompanyId') || Math.random().toString(36).substr(2, 9);
+                localStorage.setItem('lawncareCompanyId', id);
+                return id;
+            });
+
+            const [formData, setFormData] = useState({
+                date: '',
+                serviceType: 'regular',
+                cost: '',
+                notes: '',
+                recurrence: 'once'
+            });
+
+            useEffect(() => {
+                localStorage.setItem('lawncareJobs', JSON.stringify(jobs));
+            }, [jobs]);
+
+            const serviceTypes = {
+                regular: 'Regular Mowing',
+                trim: 'Trim & Edge',
+                landscaping: 'Landscaping',
+                cleanup: 'Cleanup',
+                aeration: 'Aeration & Seeding',
+                custom: 'Custom Service'
+            };
+
+            const serviceColors = {
+                regular: '#4caf50',
+                trim: '#2196f3',
+                landscaping: '#ff9800',
+                cleanup: '#9c27b0',
+                aeration: '#00bcd4',
+                custom: '#795548'
+            };
+
+            // Calendar calculations
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const daysInMonth = lastDay.getDate();
+            const startingDayOfWeek = firstDay.getDay();
+
+            const getDaysArray = () => {
+                const days = [];
+                for (let i = 0; i < startingDayOfWeek; i++) {
+                    days.push(null);
+                }
+                for (let i = 1; i <= daysInMonth; i++) {
+                    days.push(i);
+                }
+                return days;
+            };
+
+            const getJobsForDate = (day) => {
+                if (!day) return [];
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                return jobs.filter(job => job.date === dateStr);
+            };
+
+            const handleCreateJob = (e) => {
+                e.preventDefault();
+                if (!formData.date || !formData.cost) return;
+
+                const newJob = {
+                    id: Date.now(),
+                    date: formData.date,
+                    serviceType: formData.serviceType,
+                    cost: parseFloat(formData.cost),
+                    notes: formData.notes,
+                    recurrence: formData.recurrence,
+                    completed: false
+                };
+
+                if (formData.recurrence === 'weekly') {
+                    for (let i = 0; i < 12; i++) {
+                        const recurDate = new Date(formData.date);
+                        recurDate.setDate(recurDate.getDate() + i * 7);
+                        setJobs(prev => [...prev, {
+                            ...newJob,
+                            id: Date.now() + i,
+                            date: recurDate.toISOString().split('T')[0]
+                        }]);
+                    }
+                } else if (formData.recurrence === 'biweekly') {
+                    for (let i = 0; i < 6; i++) {
+                        const recurDate = new Date(formData.date);
+                        recurDate.setDate(recurDate.getDate() + i * 14);
+                        setJobs(prev => [...prev, {
+                            ...newJob,
+                            id: Date.now() + i,
+                            date: recurDate.toISOString().split('T')[0]
+                        }]);
+                    }
+                } else {
+                    setJobs(prev => [...prev, newJob]);
+                }
+
+                setFormData({ date: '', serviceType: 'regular', cost: '', notes: '', recurrence: 'once' });
+                setShowModal(false);
+            };
+
+            const toggleJobComplete = (id) => {
+                setJobs(prev => prev.map(job =>
+                    job.id === id ? { ...job, completed: !job.completed } : job
+                ));
+            };
+
+            const deleteJob = (id) => {
+                setJobs(prev => prev.filter(job => job.id !== id));
+            };
+
+            const shareLink = `${window.location.origin}?schedule=${companyId}`;
+
+            const copyToClipboard = () => {
+                navigator.clipboard.writeText(shareLink);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+            };
+
+            const previousMonth = () => {
+                setCurrentDate(new Date(year, month - 1, 1));
+                setSelectedDate(null);
+            };
+
+            const nextMonth = () => {
+                setCurrentDate(new Date(year, month + 1, 1));
+                setSelectedDate(null);
+            };
+
+            const monthName = new Date(year, month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            const daysArray = getDaysArray();
+            const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+            const selectedDateJobs = selectedDate ? getJobsForDate(selectedDate) : [];
+            const totalMonthRevenue = Array.from({ length: daysInMonth }, (_, i) => i + 1)
+                .flatMap(day => getJobsForDate(day))
+                .reduce((sum, job) => sum + job.cost, 0);
+
+            return (
+                <div style={{ background: 'linear-gradient(135deg, #f5f3f0 0%, #fafaf8 100%)' }} className="min-h-screen">
+                    {/* Header */}
+                    <header style={{ borderBottom: '1px solid #e8e3de' }} className="py-8 px-6">
+                        <div style={{ maxWidth: '1280px', margin: '0 auto' }}>
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <h1 style={{ color: '#2d5016' }} className="text-4xl font-bold mb-2">
+                                        Lawn Schedule
+                                    </h1>
+                                    <p style={{ color: '#666' }} className="text-sm">
+                                        View your entire year on one calendar
+                                    </p>
+                                </div>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setShowShare(true)}
+                                        style={{ 
+                                            background: '#f0ebe5',
+                                            color: '#2d5016',
+                                            border: '1px solid #e8ddd5'
+                                        }}
+                                        className="px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium hover:bg-white transition-colors cursor-pointer"
+                                    >
+                                        <Share2 size={16} />
+                                        Share
+                                    </button>
+                                    <button
+                                        onClick={() => setShowModal(true)}
+                                        style={{ background: '#2d5016' }}
+                                        className="px-4 py-2 rounded-lg text-white flex items-center gap-2 font-medium hover:opacity-90 transition-opacity cursor-pointer"
+                                    >
+                                        <Plus size={18} />
+                                        New Job
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* Main Content */}
+                    <div style={{ maxWidth: '1280px', margin: '0 auto' }} className="px-6 py-8">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            {/* Calendar */}
+                            <div className="lg:col-span-2">
+                                <div style={{ background: '#fff', border: '1px solid #e8e3de' }} className="rounded-lg p-6">
+                                    {/* Month Navigation */}
+                                    <div className="flex justify-between items-center mb-6">
+                                        <h2 style={{ color: '#2d5016' }} className="text-2xl font-bold">
+                                            {monthName}
+                                        </h2>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={previousMonth}
+                                                style={{ background: '#f0ebe5', color: '#2d5016', border: '1px solid #e8ddd5' }}
+                                                className="p-2 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                                            >
+                                                <ChevronLeft size={20} />
+                                            </button>
+                                            <button
+                                                onClick={nextMonth}
+                                                style={{ background: '#f0ebe5', color: '#2d5016', border: '1px solid #e8ddd5' }}
+                                                className="p-2 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                                            >
+                                                <ChevronRight size={20} />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Weekday Headers */}
+                                    <div className="grid grid-cols-7 gap-1 mb-2">
+                                        {weekDays.map(day => (
+                                            <div
+                                                key={day}
+                                                style={{ color: '#999' }}
+                                                className="text-center text-sm font-semibold py-2"
+                                            >
+                                                {day}
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Calendar Grid */}
+                                    <div className="grid grid-cols-7 gap-1">
+                                        {daysArray.map((day, index) => {
+                                            const dayJobs = day ? getJobsForDate(day) : [];
+                                            const isSelected = selectedDate === day;
+                                            const hasJobs = dayJobs.length > 0;
+
+                                            return (
+                                                <button
+                                                    key={index}
+                                                    onClick={() => day && setSelectedDate(isSelected ? null : day)}
+                                                    style={{
+                                                        background: isSelected ? '#2d5016' : hasJobs ? '#f0f5eb' : '#fafaf8',
+                                                        border: isSelected ? '2px solid #2d5016' : hasJobs ? '2px solid #2d5016' : '1px solid #e8e3de',
+                                                        color: isSelected ? '#fff' : '#2d5016',
+                                                        aspectRatio: '1'
+                                                    }}
+                                                    className="rounded-lg p-2 flex flex-col items-center justify-start cursor-pointer hover:shadow-sm transition-all relative overflow-hidden group"
+                                                >
+                                                    {day && (
+                                                        <>
+                                                            <span className="font-semibold text-sm mb-1">{day}</span>
+                                                            {hasJobs && (
+                                                                <div className="flex flex-wrap gap-1 justify-center">
+                                                                    {dayJobs.slice(0, 2).map((job) => (
+                                                                        <div
+                                                                            key={job.id}
+                                                                            style={{
+                                                                                background: serviceColors[job.serviceType],
+                                                                                width: '6px',
+                                                                                height: '6px'
+                                                                            }}
+                                                                            className="rounded-full"
+                                                                        />
+                                                                    ))}
+                                                                    {dayJobs.length > 2 && (
+                                                                        <span style={{ color: isSelected ? '#fff' : '#2d5016' }} className="text-xs font-bold">
+                                                                            +{dayJobs.length - 2}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </>
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {/* Legend */}
+                                    <div className="mt-6 pt-6" style={{ borderTop: '1px solid #e8e3de' }}>
+                                        <p style={{ color: '#999', fontSize: '12px' }} className="mb-3 uppercase tracking-wide">
+                                            Service Types
+                                        </p>
+                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                            {Object.entries(serviceTypes).map(([key, label]) => (
+                                                <div key={key} className="flex items-center gap-2">
+                                                    <div
+                                                        style={{ background: serviceColors[key] }}
+                                                        className="w-3 h-3 rounded-full"
+                                                    />
+                                                    <span style={{ color: '#666' }} className="text-xs">
+                                                        {label}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Month Stats */}
+                                    <div className="mt-6 pt-6" style={{ borderTop: '1px solid #e8e3de' }}>
+                                        <p style={{ color: '#2d5016' }} className="font-semibold mb-2">
+                                            {monthName} Revenue: ${totalMonthRevenue.toFixed(2)}
+                                        </p>
+                                        <p style={{ color: '#999', fontSize: '13px' }}>
+                                            Total jobs: {Array.from({ length: daysInMonth }, (_, i) => i + 1).flatMap(day => getJobsForDate(day)).length}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Selected Day Sidebar */}
+                            <div>
+                                {selectedDate ? (
+                                    <div style={{ background: '#fff', border: '1px solid #e8e3de' }} className="rounded-lg p-6 sticky top-6">
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div>
+                                                <h3 style={{ color: '#2d5016' }} className="text-xl font-bold">
+                                                    {new Date(year, month, selectedDate).toLocaleDateString('en-US', {
+                                                        weekday: 'long',
+                                                        month: 'long',
+                                                        day: 'numeric'
+                                                    })}
+                                                </h3>
+                                                <p style={{ color: '#999', fontSize: '13px' }} className="mt-1">
+                                                    {selectedDateJobs.length} job{selectedDateJobs.length !== 1 ? 's' : ''}
+                                                </p>
+                                            </div>
+                                            <button
+                                                onClick={() => setSelectedDate(null)}
+                                                className="text-gray-400 hover:text-gray-600 cursor-pointer"
+                                            >
+                                                <X size={20} />
+                                            </button>
+                                        </div>
+
+                                        {selectedDateJobs.length === 0 ? (
+                                            <div style={{ background: '#f5f3f0' }} className="p-4 rounded-lg text-center py-8">
+                                                <p style={{ color: '#999' }} className="text-sm mb-3">
+                                                    No jobs scheduled
+                                                </p>
+                                                <button
+                                                    onClick={() => {
+                                                        setFormData({
+                                                            ...formData,
+                                                            date: `${year}-${String(month + 1).padStart(2, '0')}-${String(selectedDate).padStart(2, '0')}`
+                                                        });
+                                                        setShowModal(true);
+                                                    }}
+                                                    style={{ color: '#2d5016' }}
+                                                    className="text-sm font-medium hover:underline cursor-pointer"
+                                                >
+                                                    Add a job for this day
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-thin">
+                                                {selectedDateJobs.map(job => (
+                                                    <div
+                                                        key={job.id}
+                                                        style={{
+                                                            background: job.completed ? '#f5f5f5' : '#f9f7f4',
+                                                            borderLeft: `4px solid ${serviceColors[job.serviceType]}`
+                                                        }}
+                                                        className="p-3 rounded-lg"
+                                                    >
+                                                        <div className="flex items-start justify-between mb-2">
+                                                            <div className="flex items-start gap-2 flex-1">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={job.completed}
+                                                                    onChange={() => toggleJobComplete(job.id)}
+                                                                    className="mt-1 w-4 h-4 rounded cursor-pointer"
+                                                                    style={{ accentColor: '#2d5016' }}
+                                                                />
+                                                                <div className="flex-1">
+                                                                    <p
+                                                                        style={{
+                                                                            color: '#2d5016',
+                                                                            textDecoration: job.completed ? 'line-through' : 'none',
+                                                                            opacity: job.completed ? 0.6 : 1
+                                                                        }}
+                                                                        className="font-semibold text-sm"
+                                                                    >
+                                                                        {serviceTypes[job.serviceType]}
+                                                                    </p>
+                                                                    <p style={{ color: '#999', fontSize: '12px' }} className="mt-1">
+                                                                        ${job.cost.toFixed(2)}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                            <button
+                                                                onClick={() => deleteJob(job.id)}
+                                                                className="text-red-600 hover:bg-red-50 p-1 rounded transition-colors cursor-pointer"
+                                                            >
+                                                                <X size={16} />
+                                                            </button>
+                                                        </div>
+                                                        {job.notes && (
+                                                            <p style={{ color: '#999', fontSize: '12px' }} className="pl-6 italic">
+                                                                "{job.notes}"
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div style={{ background: '#fff', border: '1px solid #e8e3de' }} className="rounded-lg p-6">
+                                        <div style={{ color: '#999' }} className="text-center py-12">
+                                            <div style={{ marginBottom: '16px', opacity: 0.5 }}>
+                                                <Calendar size={40} style={{ margin: '0 auto' }} />
+                                            </div>
+                                            <p className="text-sm">
+                                                Click on a date to view jobs for that day
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Create Job Modal */}
+                    {showModal && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                            <div style={{ background: '#fff' }} className="rounded-lg max-w-md w-full p-6">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h2 style={{ color: '#2d5016' }} className="text-xl font-bold">
+                                        Schedule a Job
+                                    </h2>
+                                    <button
+                                        onClick={() => setShowModal(false)}
+                                        className="text-gray-400 hover:text-gray-600 cursor-pointer"
+                                    >
+                                        <X size={24} />
+                                    </button>
+                                </div>
+
+                                <form onSubmit={handleCreateJob} className="space-y-4">
+                                    <div>
+                                        <label style={{ color: '#2d5016' }} className="block text-sm font-medium mb-1">
+                                            Date
+                                        </label>
+                                        <input
+                                            type="date"
+                                            required
+                                            value={formData.date}
+                                            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                                            className="w-full px-3 py-2 border rounded-lg"
+                                            style={{ borderColor: '#e8e3de' }}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label style={{ color: '#2d5016' }} className="block text-sm font-medium mb-1">
+                                            Service Type
+                                        </label>
+                                        <select
+                                            value={formData.serviceType}
+                                            onChange={(e) => setFormData({ ...formData, serviceType: e.target.value })}
+                                            className="w-full px-3 py-2 border rounded-lg"
+                                            style={{ borderColor: '#e8e3de' }}
+                                        >
+                                            {Object.entries(serviceTypes).map(([key, label]) => (
+                                                <option key={key} value={key}>
+                                                    {label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label style={{ color: '#2d5016' }} className="block text-sm font-medium mb-1">
+                                            Cost
+                                        </label>
+                                        <input
+                                            type="number"
+                                            required
+                                            step="0.01"
+                                            min="0"
+                                            value={formData.cost}
+                                            onChange={(e) => setFormData({ ...formData, cost: e.target.value })}
+                                            className="w-full px-3 py-2 border rounded-lg"
+                                            style={{ borderColor: '#e8e3de' }}
+                                            placeholder="50.00"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label style={{ color: '#2d5016' }} className="block text-sm font-medium mb-1">
+                                            Repeat
+                                        </label>
+                                        <select
+                                            value={formData.recurrence}
+                                            onChange={(e) => setFormData({ ...formData, recurrence: e.target.value })}
+                                            className="w-full px-3 py-2 border rounded-lg"
+                                            style={{ borderColor: '#e8e3de' }}
+                                        >
+                                            <option value="once">Once</option>
+                                            <option value="weekly">Weekly (12 weeks)</option>
+                                            <option value="biweekly">Biweekly (6 months)</option>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label style={{ color: '#2d5016' }} className="block text-sm font-medium mb-1">
+                                            Notes (optional)
+                                        </label>
+                                        <textarea
+                                            value={formData.notes}
+                                            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                                            className="w-full px-3 py-2 border rounded-lg resize-none"
+                                            style={{ borderColor: '#e8e3de' }}
+                                            rows="2"
+                                            placeholder="e.g., Client prefers morning, check irrigation system"
+                                        />
+                                    </div>
+
+                                    <div className="flex gap-3 pt-4">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setShowModal(false);
+                                                setFormData({ date: '', serviceType: 'regular', cost: '', notes: '', recurrence: 'once' });
+                                            }}
+                                            style={{ background: '#f0ebe5', color: '#2d5016', border: '1px solid #e8ddd5' }}
+                                            className="flex-1 py-2 rounded-lg font-medium hover:bg-gray-100 transition-colors cursor-pointer"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            style={{ background: '#2d5016' }}
+                                            className="flex-1 py-2 rounded-lg text-white font-medium hover:opacity-90 transition-opacity cursor-pointer"
+                                        >
+                                            Create Job
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Share Modal */}
+                    {showShare && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                            <div style={{ background: '#fff' }} className="rounded-lg max-w-md w-full p-6">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h2 style={{ color: '#2d5016' }} className="text-xl font-bold">
+                                        Share Schedule
+                                    </h2>
+                                    <button
+                                        onClick={() => setShowShare(false)}
+                                        className="text-gray-400 hover:text-gray-600 cursor-pointer"
+                                    >
+                                        <X size={24} />
+                                    </button>
+                                </div>
+
+                                <p style={{ color: '#666' }} className="text-sm mb-4">
+                                    Share this link with team members to let them view your full calendar schedule:
+                                </p>
+
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        readOnly
+                                        value={shareLink}
+                                        className="flex-1 px-3 py-2 border rounded-lg text-sm bg-gray-50"
+                                        style={{ borderColor: '#e8e3de' }}
+                                    />
+                                    <button
+                                        onClick={copyToClipboard}
+                                        style={{
+                                            background: copied ? '#4caf50' : '#2d5016',
+                                            color: '#fff'
+                                        }}
+                                        className="px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer"
+                                    >
+                                        <Copy size={16} />
+                                        {copied ? 'Copied!' : 'Copy'}
+                                    </button>
+                                </div>
+
+                                <p style={{ color: '#999', fontSize: '12px' }} className="mt-4 text-center">
+                                    Share this link to let others view (but not edit) your schedule
+                                </p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // Render the app
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<LawncareSchedulerCalendar />);
+    </script>
+</body>
+</html>
